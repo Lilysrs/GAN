@@ -1,6 +1,3 @@
-import torch
-import torch.nn as nn
-import numpy
 import os, gzip, torch
 import torch.nn as nn
 import numpy as np
@@ -8,28 +5,7 @@ import scipy.misc
 import imageio
 import matplotlib.pyplot as plt
 from torchvision import datasets, transforms
-
-def gradient_penalty(critic,real,fake,device="cpu"):
-    Batch_size, C, H, W = real.shape
-    epsilon = torch.rand((Batch_size,1,1,1)).repeat(1,C,H,W).to(device)
-    interpolated_images = real*epsilon + fake*(1-epsilon)
-
-    # calculate critic scores
-    mixed_scores = critic(interpolated_images)
-
-    gradient = torch.autograd.grad(
-        input = interpolated_images,
-        output = mixed_scores,
-        grad_outputs=torch.ones_like(mixed_scores),
-        create_graph=True,
-        retain_graph=True,
-    )[0]
-
-    gradient = gradient.view(gradient.shape[0],-1)
-    gradient_norm = gradient.norm(2,dim=1)
-    gradient_penalty = torch.mean((gradient_norm -1)**2)
-    return gradient_penalty
-
+from PIL import Image
 
 
 def load_mnist(dataset):
@@ -39,7 +15,7 @@ def load_mnist(dataset):
         with gzip.open(filename) as bytestream:
             bytestream.read(head_size)
             buf = bytestream.read(data_size * num_data)
-            data = np.frombuffer(buf, dtype=np.uint8).astype(np.float)
+            data = np.frombuffer(buf, dtype=np.uint8).astype(np.unit8)
         return data
 
     data = extract_data(data_dir + '/train-images-idx3-ubyte.gz', 60000, 16, 28 * 28)
@@ -104,7 +80,11 @@ def save_images(images, size, image_path):
 
 def imsave(images, size, path):
     image = np.squeeze(merge(images, size))
-    return scipy.misc.imsave(path, image)
+    image = Image.fromarray((image * 255).astype(np.uint8))
+    image = Image.fromarray(numpy.unit8(deconvolved))
+    # image = image.astype(np.uint8)
+    image = image.convert('L')
+    return imageio.imwrite(path, image)
 
 def merge(images, size):
     h, w = images.shape[1], images.shape[2]
@@ -131,6 +111,7 @@ def generate_animation(path, num):
     for e in range(num):
         img_name = path + '_epoch%03d' % (e+1) + '.png'
         images.append(imageio.imread(img_name))
+        
     imageio.mimsave(path + '_generate_animation.gif', images, fps=5)
 
 def loss_plot(hist, path = 'Train_hist.png', model_name = ''):
@@ -157,15 +138,12 @@ def loss_plot(hist, path = 'Train_hist.png', model_name = ''):
 
 def initialize_weights(net):
     for m in net.modules():
-        print(f"The info about m is {m}")
         if isinstance(m, nn.Conv2d):
             m.weight.data.normal_(0, 0.02)
             m.bias.data.zero_()
         elif isinstance(m, nn.ConvTranspose2d):
             m.weight.data.normal_(0, 0.02)
-            print(f"The type of bias is {m.bias}")
             m.bias.data.zero_()
         elif isinstance(m, nn.Linear):
             m.weight.data.normal_(0, 0.02)
             m.bias.data.zero_()
-print
